@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<div id="checkout">
+    <button id="buyButton">Checkout</button>
+</div>
+
+<script>
+    var allowedCardNetworks = ['AMEX', 'DISCOVER', 'MASTERCARD', 'VISA'];
+
+    if (window.PaymentRequest) {
+        var request = createPaymentRequest();
+
+        request.canMakePayment()
+            .then(function(result) {
+                if (result) {
+                    // Display PaymentRequest dialog on interaction with the existing checkout button
+                    document.getElementById('buyButton')
+                        .addEventListener('click', onBuyClicked);
+                }
+            })
+            .catch(function(err) {
+                showErrorForDebugging(
+                    'canMakePayment() error! ' + err.name + ' error: ' + err.message);
+            });
+    } else {
+        showErrorForDebugging('PaymentRequest API not available.');
+    }
+
+    /**
+     * Show a PaymentRequest dialog after a user clicks the checkout button
+     */
+    function onBuyClicked() {
+        createPaymentRequest()
+            .show()
+            .then(function(response) {
+                // Dismiss payment dialog.
+                response.complete('success');
+                handlePaymentResponse(response);
+            })
+            .catch(function(err) {
+                showErrorForDebugging(
+                    'show() error! ' + err.name + ' error: ' + err.message);
+            });
+    }
+
+    /**
+     * Define your unique Google Pay API configuration
+     *
+     * @returns {object} data attribute suitable for PaymentMethodData
+     */
+    function getGooglePaymentsConfiguration() {
+        return {
+            // A merchant ID is available after approval by Google.
+            // 'merchantId':'01234567890123456789',
+            environment: 'TEST',
+            apiVersion: 1,
+            allowedPaymentMethods: ['CARD', 'TOKENIZED_CARD'],
+            paymentMethodTokenizationParameters: {
+                tokenizationType: 'PAYMENT_GATEWAY',
+                // Check with your payment gateway on the parameters to pass.
+                // @see {@link https://developers.google.com/pay/api/web/reference/object#Gateway}
+                parameters: {}
+            },
+            cardRequirements: {allowedCardNetworks: allowedCardNetworks}
+        };
+    }
+
+    /**
+     * Create a PaymentRequest
+     *
+     * @returns {PaymentRequest}
+     */
+    function createPaymentRequest() {
+        // Add support for the Google Pay API.
+        var methodData = [{
+            supportedMethods: 'https://google.com/pay',
+            data: getGooglePaymentsConfiguration()
+        }];
+        // Add other supported payment methods.
+        methodData.push({
+            supportedMethods: 'basic-card',
+            data: {
+                supportedNetworks:
+                    Array.from(allowedCardNetworks, (network) => network.toLowerCase())
+            }
+        });
+
+        const allDisplayItems = [
+            {
+                label: 'Subtotal',
+                amount: {
+                    currency: 'USD',
+                    value: 10,
+                },
+            }, {
+                label: 'Fuel Saver',
+                amount: {
+                    currency: 'USD',
+                    value: -1,
+                },
+            }, {
+                label: 'Tax',
+                amount: {
+                    currency: 'USD',
+                    value: 0.68,
+                },
+            },
+        ];
+
+        const paymentDetails = {
+            total: {
+                label: 'Total',
+                amount: {
+                    currency: 'USD',
+                    value: 12,
+                },
+            },
+            displayItems: allDisplayItems,
+        };
+
+        var options = {
+            requestPayerEmail: true,
+            requestPayerName: true
+        };
+
+        return new PaymentRequest(methodData, paymentDetails, options);
+    }
+
+    /**
+     * Process a PaymentResponse
+     *
+     * @param {PaymentResponse} response returned when a user approves the payment request
+     */
+    function handlePaymentResponse(response) {
+        var formattedResponse = document.createElement('pre');
+        formattedResponse.appendChild(
+            document.createTextNode(JSON.stringify(response.toJSON(), null, 2)));
+        document.getElementById('checkout')
+            .insertAdjacentElement('afterend', formattedResponse);
+    }
+
+    /**
+     * Display an error message for debugging
+     *
+     * @param {string} text message to display
+     */
+    function showErrorForDebugging(text) {
+        var errorDisplay = document.createElement('code');
+        errorDisplay.style.color = 'red';
+        errorDisplay.appendChild(document.createTextNode(text));
+        var p = document.createElement('p');
+        p.appendChild(errorDisplay);
+        document.getElementById('checkout').insertAdjacentElement('afterend', p);
+    }
+
+</script>
+</body>
+</html>
